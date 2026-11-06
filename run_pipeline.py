@@ -148,15 +148,17 @@ def step_train():
 
     logger.info("=== TRAINING MODEL ===")
 
-    parquet_files = [
-        f
-        for f in os.listdir(config.PARQUET_DIR)
-        if f.endswith(".parquet")
-    ] if os.path.exists(config.PARQUET_DIR) else []
+    import glob
 
-    if len(parquet_files) < 2:
+    data_files = []
+    if os.path.exists(config.PARQUET_DIR):
+        data_files.extend(glob.glob(os.path.join(config.PARQUET_DIR, "fuel_prices_*.parquet")))
+    if os.path.exists(config.PROCESSED_DIR):
+        data_files.extend(glob.glob(os.path.join(config.PROCESSED_DIR, "fuel_prices_*.csv")))
+
+    if len(data_files) < 2:
         logger.warning(
-            f"Only {len(parquet_files)} snapshot(s) available. "
+            f"Only {len(data_files)} snapshot(s) available. "
             f"Need at least {config.MIN_HISTORY_DAYS} days of data for training. "
             f"Keep collecting data and try again later."
         )

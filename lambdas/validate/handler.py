@@ -32,8 +32,18 @@ def handler(event, context):
     """
     logger.info(f"Validating file: {event}")
 
-    s3_bucket = event.get("s3_bucket", config.S3_BUCKET)
-    s3_key = event.get("s3_key", "")
+    s3_bucket = (
+        event.get("s3_bucket")
+        or event.get("source_bucket")
+        or event.get("detail", {}).get("bucket", {}).get("name")
+        or config.S3_BUCKET
+    )
+    s3_key = (
+        event.get("s3_key")
+        or event.get("source_key")
+        or event.get("detail", {}).get("object", {}).get("key")
+        or ""
+    )
     local_path = event.get("file_path", "")
 
     if config.ENVIRONMENT == "aws" and s3_key:

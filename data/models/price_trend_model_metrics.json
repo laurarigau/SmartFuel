@@ -1,0 +1,22 @@
+{
+  "accuracy": 0.6756150985685905,
+  "precision": 0.4982456140350877,
+  "recall": 0.022302497251452804,
+  "f1": 0.042693926638604926,
+  "feature_importances": {
+    "price_lag_1d": 0.077107,
+    "price_lag_2d": 0.077187,
+    "price_lag_3d": 0.077191,
+    "price_lag_4d": 0.077412,
+    "price_lag_5d": 0.077337,
+    "price_lag_6d": 0.077269,
+    "price_lag_7d": 0.073635,
+    "price_rolling_mean_3d": 0.08381,
+    "price_rolling_std_3d": 0.000361,
+    "price_rolling_mean_7d": 0.080091,
+    "price_rolling_std_7d": 0.000787,
+    "day_of_week": 0.173676,
+    "is_weekend": 0.104192,
+    "price_momentum": 0.019944
+  }
+}

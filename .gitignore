@@ -45,6 +45,9 @@ frontend/node_modules/
 # Jupyter
 .ipynb_checkpoints/
 
+# Packages & Lambda build artifacts
+packages/
+
 # Environment variables
 .env
 .env.local

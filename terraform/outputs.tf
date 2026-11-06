@@ -4,7 +4,7 @@
 
 output "api_endpoint" {
   description = "HTTP API Gateway endpoint URL"
-  value       = aws_apigatewayv2_api.http_api.api_endpoint
+  value       = aws_apigatewayv2_api.main.api_endpoint
 }
 
 output "s3_bucket_name" {

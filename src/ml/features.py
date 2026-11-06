@@ -91,7 +91,7 @@ def load_price_history(data_dir: str | None = None) -> pd.DataFrame:
 
 def build_station_features(
     history_df: pd.DataFrame,
-    station_id: str,
+    station_id: str | None = None,
 ) -> pd.DataFrame:
     """Compute daily time-series features for a single station.
 
@@ -106,27 +106,35 @@ def build_station_features(
         - ``price_momentum`` — price change over the last 3 days.
 
     Args:
-        history_df: Full price history DataFrame (all stations).
-        station_id: Station to build features for.
+        history_df: Price history DataFrame for the station or all stations.
+        station_id: Optional station to build features for.
 
     Returns:
         DataFrame with one row per day for the requested station, including
         all engineered feature columns.
     """
-    station_df = (
-        history_df[history_df["station_id"] == station_id]
-        .copy()
-        .sort_values("snapshot_date")
-    )
+    if station_id is not None and "station_id" in history_df.columns:
+        station_df = history_df[history_df["station_id"] == station_id].copy()
+    else:
+        station_df = history_df.copy()
 
     if station_df.empty or _PRICE_COL not in station_df.columns:
         return pd.DataFrame()
+
+    if "snapshot_date" in station_df.columns:
+        if not pd.api.types.is_datetime64_any_dtype(station_df["snapshot_date"]):
+            station_df["snapshot_date"] = pd.to_datetime(station_df["snapshot_date"], errors="coerce")
+        station_df = station_df.sort_values("snapshot_date")
 
     # Keep only rows with a valid price
     station_df = station_df.dropna(subset=[_PRICE_COL])
 
     # Deduplicate to a single record per day (take the last snapshot of each day)
-    station_df["date"] = station_df["snapshot_date"].dt.date
+    if "snapshot_date" in station_df.columns:
+        station_df["date"] = station_df["snapshot_date"].dt.date
+    else:
+        station_df["date"] = pd.date_range("2026-01-01", periods=len(station_df)).date
+
     station_df = station_df.drop_duplicates(subset=["date"], keep="last")
     station_df = station_df.sort_values("date").reset_index(drop=True)
 
@@ -172,13 +180,16 @@ def build_training_data(
         Tuple of ``(X, y)`` where *X* is a feature DataFrame and *y* is a
         binary Series aligned to *X*'s index.
     """
-    station_ids = history_df["station_id"].unique()
-    logger.info("Building training data for %d stations", len(station_ids))
-
+    logger.info("Building training data for stations")
     feature_frames: list[pd.DataFrame] = []
 
-    for sid in station_ids:
-        station_features = build_station_features(history_df, sid)
+    if "station_id" in history_df.columns:
+        grouped = history_df.groupby("station_id")
+    else:
+        grouped = [(None, history_df)]
+
+    for sid, station_group in grouped:
+        station_features = build_station_features(station_group)
 
         if station_features.empty:
             continue

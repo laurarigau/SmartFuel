@@ -529,7 +529,7 @@ data "aws_iam_policy_document" "step_functions" {
     actions = [
       "sqs:SendMessage"
     ]
-    resources = [aws_sqs_queue.dlq.arn]
+    resources = [aws_sqs_queue.pipeline_dlq.arn]
   }
 
   statement {

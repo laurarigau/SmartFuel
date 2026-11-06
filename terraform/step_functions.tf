@@ -16,7 +16,7 @@ resource "aws_sfn_state_machine" "processing" {
     clean_lambda_arn       = aws_lambda_function.clean.arn
     save_prices_lambda_arn = aws_lambda_function.save_prices.arn
     predict_lambda_arn     = aws_lambda_function.predict.arn
-    dlq_url                = aws_sqs_queue.dlq.url
+    sqs_dlq_url            = aws_sqs_queue.pipeline_dlq.url
     sns_topic_arn          = aws_sns_topic.admin_alerts.arn
   })
 
@@ -52,6 +52,7 @@ resource "aws_sfn_state_machine" "retraining" {
   definition = templatefile("${path.module}/../stepfunctions/retraining_workflow.asl.json", {
     retrain_lambda_arn = aws_lambda_function.retrain.arn
     sns_topic_arn      = aws_sns_topic.admin_alerts.arn
+    s3_bucket          = aws_s3_bucket.data_lake.id
   })
 
   logging_configuration {

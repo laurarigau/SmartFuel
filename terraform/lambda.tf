@@ -29,16 +29,16 @@ resource "aws_lambda_layer_version" "src" {
 # ---------------------------------------------------------------------------
 locals {
   lambda_env_vars = {
-    SMARTFUEL_ENV              = "aws"
-    SMARTFUEL_S3_BUCKET        = aws_s3_bucket.data_lake.id
-    SMARTFUEL_DYNAMO_STATIONS  = aws_dynamodb_table.stations.name
-    SMARTFUEL_DYNAMO_PRICES    = aws_dynamodb_table.prices.name
-    SMARTFUEL_DYNAMO_PREDICTIONS = aws_dynamodb_table.predictions.name
+    SMARTFUEL_ENV                  = "aws"
+    SMARTFUEL_S3_BUCKET            = aws_s3_bucket.data_lake.id
+    SMARTFUEL_DYNAMO_STATIONS      = aws_dynamodb_table.stations.name
+    SMARTFUEL_DYNAMO_PRICES        = aws_dynamodb_table.prices.name
+    SMARTFUEL_DYNAMO_PREDICTIONS   = aws_dynamodb_table.predictions.name
     SMARTFUEL_DYNAMO_SUBSCRIPTIONS = aws_dynamodb_table.subscriptions.name
-    SMARTFUEL_SNS_TOPIC        = aws_sns_topic.admin_alerts.arn
-    SMARTFUEL_SQS_DLQ          = aws_sqs_queue.dlq.url
-    SMARTFUEL_LOG_LEVEL        = "INFO"
-    AWS_REGION_NAME            = var.aws_region
+    SMARTFUEL_SNS_TOPIC            = aws_sns_topic.admin_alerts.arn
+    SMARTFUEL_SQS_DLQ              = aws_sqs_queue.pipeline_dlq.url
+    SMARTFUEL_LOG_LEVEL            = "INFO"
+    AWS_REGION_NAME                = var.aws_region
   }
 }
 
