@@ -1,0 +1,191 @@
+{
+  "Comment": "SmartFuel - Main data processing workflow (Validate -> Clean -> Parallel Save & Predict)",
+  "StartAt": "ValidateData",
+  "States": {
+    "ValidateData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "${validate_lambda_arn}",
+        "Payload": {
+          "s3_bucket.$": "$.detail.bucket.name",
+          "s3_key.$": "$.detail.object.key"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "SendToDLQ"
+        }
+      ],
+      "Next": "CheckValidation"
+    },
+    "CheckValidation": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.valid",
+          "BooleanEquals": true,
+          "Next": "CleanData"
+        }
+      ],
+      "Default": "QuarantineAndAlert"
+    },
+    "QuarantineAndAlert": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${sns_topic_arn}",
+        "Subject": "SmartFuel: Raw Data Validation Failed",
+        "Message": {
+          "error": "Data validation failed",
+          "details.$": "$.errors",
+          "quarantined_path.$": "$.quarantined_path"
+        }
+      },
+      "Next": "ValidationFailed"
+    },
+    "ValidationFailed": {
+      "Type": "Fail",
+      "Error": "ValidationError",
+      "Cause": "The raw data file did not pass validation checks."
+    },
+    "CleanData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "${clean_lambda_arn}",
+        "Payload": {
+          "s3_bucket.$": "$.s3_bucket",
+          "s3_key.$": "$.s3_key",
+          "timestamp.$": "$.timestamp"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "SendToDLQ"
+        }
+      ],
+      "Next": "ParallelSaveAndPredict"
+    },
+    "ParallelSaveAndPredict": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "SaveChangedPrices",
+          "States": {
+            "SaveChangedPrices": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "FunctionName": "${save_prices_lambda_arn}",
+                "Payload": {
+                  "changes_s3_key.$": "$.changes_s3_key",
+                  "timestamp.$": "$.timestamp"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "RunPredictions",
+          "States": {
+            "RunPredictions": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "FunctionName": "${predict_lambda_arn}",
+                "Payload": {
+                  "parquet_s3_key.$": "$.parquet_s3_key",
+                  "timestamp.$": "$.timestamp"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "SendToDLQ"
+        }
+      ],
+      "Next": "ProcessingComplete"
+    },
+    "SendToDLQ": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "${sqs_dlq_url}",
+        "MessageBody.$": "$.error"
+      },
+      "Next": "ProcessingFailed"
+    },
+    "ProcessingFailed": {
+      "Type": "Fail",
+      "Error": "ProcessingError",
+      "Cause": "An error occurred during data processing. Error sent to DLQ."
+    },
+    "ProcessingComplete": {
+      "Type": "Succeed"
+    }
+  }
+}

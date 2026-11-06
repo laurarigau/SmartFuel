@@ -1,0 +1,16 @@
+[
+  {
+    "user_id": "user-001",
+    "email": "alice@example.com",
+    "station_id": "1234",
+    "fuel_type": "Gasoline 95 E5",
+    "target_price": 1.45
+  },
+  {
+    "user_id": "user-002",
+    "email": "bob@example.com",
+    "station_id": "5678",
+    "fuel_type": "Diesel A",
+    "target_price": 1.35
+  }
+]

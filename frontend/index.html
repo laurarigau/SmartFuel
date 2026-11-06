@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SmartFuel — Real-time fuel prices, predictions, and alerts for Spain's 12,000+ gas stations." />
+  <title>SmartFuel — Fuel Price Forecasting for Spain</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Leaflet MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Leaflet MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ============ HEADER ============ -->
+  <header class="header" role="banner">
+    <div class="header__left">
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" title="Toggle sidebar">
+        <span class="hamburger-icon"></span>
+      </button>
+      <a href="#" class="header__logo" aria-label="SmartFuel home">
+        <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 22V6l9-4 9 4v16"/>
+          <path d="M12 2v20"/>
+          <path d="M3 10h18"/>
+          <circle cx="12" cy="16" r="2"/>
+        </svg>
+        <span class="logo-text">Smart<strong>Fuel</strong></span>
+      </a>
+    </div>
+
+    <nav class="header__nav" role="navigation" aria-label="Main navigation">
+      <a href="#" class="nav-link nav-link--active" data-view="map">Map</a>
+      <a href="#" class="nav-link" data-view="about">About</a>
+    </nav>
+
+    <div class="header__right">
+      <div class="mode-badge" id="modeBadge" title="Data source">
+        <span class="mode-dot"></span>
+        <span class="mode-label">Demo</span>
+      </div>
+      <div class="auth-buttons" id="authButtons">
+        <button class="btn btn--outline btn--sm" id="loginBtn">Log In</button>
+        <button class="btn btn--primary btn--sm" id="signupBtn">Sign Up</button>
+      </div>
+      <div class="user-menu hidden" id="userMenu">
+        <button class="btn btn--ghost btn--sm" id="userMenuBtn">
+          <span class="user-avatar" aria-hidden="true">👤</span>
+          <span id="userEmail">user@example.com</span>
+        </button>
+        <div class="dropdown hidden" id="userDropdown">
+          <button class="dropdown-item" id="logoutBtn">Sign Out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="main" role="main">
+
+    <!-- ---- SIDEBAR ---- -->
+    <aside class="sidebar" id="sidebar" role="complementary" aria-label="Station filters">
+      <div class="sidebar__header">
+        <h2 class="sidebar__title">Find Stations</h2>
+        <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">&times;</button>
+      </div>
+
+      <!-- Search -->
+      <div class="sidebar__section">
+        <label for="searchInput" class="sr-only">Search location</label>
+        <div class="search-box">
+          <input type="text" id="searchInput" class="search-input" placeholder="Search city or address…"
+                 autocomplete="off" aria-label="Search location" />
+          <button class="search-btn" id="searchBtn" aria-label="Search">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+          </button>
+        </div>
+        <button class="btn btn--outline btn--block btn--sm mt-8" id="locateBtn">
+          📍 Use my location
+        </button>
+      </div>
+
+      <!-- Fuel Type Filter -->
+      <div class="sidebar__section">
+        <h3 class="sidebar__subtitle">Fuel Type</h3>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="fuelType" value="gasoline_95" checked /> Gasoline 95
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="fuelType" value="diesel" /> Diesel
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="fuelType" value="gasoline_98" /> Gasoline 98
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="fuelType" value="diesel_premium" /> Diesel Premium
+          </label>
+        </div>
+      </div>
+
+      <!-- Price Range -->
+      <div class="sidebar__section">
+        <h3 class="sidebar__subtitle">
+          Max Price: <span id="priceRangeValue">€2.50</span>
+        </h3>
+        <input type="range" id="priceRange" class="range-slider" min="0.80" max="2.50" step="0.01" value="2.50"
+               aria-label="Maximum price" />
+        <div class="range-labels">
+          <span>€0.80</span><span>€2.50</span>
+        </div>
+      </div>
+
+      <!-- Sort -->
+      <div class="sidebar__section">
+        <h3 class="sidebar__subtitle">Sort By</h3>
+        <select id="sortSelect" class="select-input" aria-label="Sort stations by">
+          <option value="price">Price (Low → High)</option>
+          <option value="distance">Distance (Near → Far)</option>
+          <option value="name">Name (A → Z)</option>
+        </select>
+      </div>
+
+      <!-- Station List -->
+      <div class="sidebar__section sidebar__station-list">
+        <h3 class="sidebar__subtitle">
+          Stations <span class="badge" id="stationCount">0</span>
+        </h3>
+        <div id="stationList" class="station-list" role="list" aria-label="Station list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- ---- MAP ---- -->
+    <div class="map-container" id="mapContainer">
+      <div id="map" class="map" role="application" aria-label="Fuel station map"></div>
+
+      <!-- Loading overlay -->
+      <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p class="loading-text">Loading stations…</p>
+      </div>
+    </div>
+
+    <!-- ---- STATION DETAIL PANEL ---- -->
+    <section class="detail-panel hidden" id="detailPanel" role="dialog" aria-label="Station details">
+      <div class="detail-panel__header">
+        <button class="btn btn--ghost btn--sm" id="backToMap" aria-label="Back to map">
+          ← Back to Map
+        </button>
+        <button class="detail-panel__close" id="detailClose" aria-label="Close detail panel">&times;</button>
+      </div>
+      <div class="detail-panel__body" id="detailBody">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- ---- ABOUT VIEW ---- -->
+    <section class="about-view hidden" id="aboutView">
+      <div class="about-container">
+        <h1>About SmartFuel</h1>
+        <p>
+          SmartFuel is a serverless fuel price forecasting and alerts system for Spain.
+          It processes data from Spain's Ministry for the Ecological Transition, covering
+          <strong>~12,000 fuel stations</strong> nationwide.
+        </p>
+        <h2>Features</h2>
+        <ul>
+          <li>📍 Interactive map showing all stations with real-time prices</li>
+          <li>📈 AI-powered price predictions (UP / DOWN OR STABLE) with confidence scores</li>
+          <li>🔔 Price alerts — get notified when fuel drops below your target</li>
+          <li>📊 30-day price history charts per station</li>
+        </ul>
+        <h2>How It Works</h2>
+        <ol>
+          <li>Data is ingested daily from the Spanish Ministry API</li>
+          <li>A machine learning model analyzes price trends and external factors</li>
+          <li>Predictions are generated for each station</li>
+          <li>Users can subscribe to price alerts via email</li>
+        </ol>
+        <h2>Tech Stack</h2>
+        <p>
+          Built with AWS Lambda, Step Functions, DynamoDB, S3, API Gateway, Cognito,
+          and Amplify. Fully serverless with a ~$50 budget.
+        </p>
+        <button class="btn btn--primary" id="aboutBackBtn">← Explore the Map</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ AUTH MODAL ============ -->
+  <div class="modal-backdrop hidden" id="authModal" role="dialog" aria-modal="true" aria-label="Authentication">
+    <div class="modal" role="document">
+      <button class="modal__close" id="modalClose" aria-label="Close">&times;</button>
+      <div class="modal__tabs">
+        <button class="tab tab--active" data-tab="login">Log In</button>
+        <button class="tab" data-tab="signup">Sign Up</button>
+      </div>
+
+      <!-- Login Form -->
+      <form class="modal__form" id="loginForm" novalidate>
+        <h2 class="modal__title">Welcome back</h2>
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" class="form-input" placeholder="you@example.com" required />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required />
+        </div>
+        <p class="form-error hidden" id="loginError"></p>
+        <button type="submit" class="btn btn--primary btn--block">Log In</button>
+      </form>
+
+      <!-- Signup Form -->
+      <form class="modal__form hidden" id="signupForm" novalidate>
+        <h2 class="modal__title">Create an account</h2>
+        <div class="form-group">
+          <label for="signupEmail">Email</label>
+          <input type="email" id="signupEmail" class="form-input" placeholder="you@example.com" required />
+        </div>
+        <div class="form-group">
+          <label for="signupPassword">Password</label>
+          <input type="password" id="signupPassword" class="form-input" placeholder="Min 8 characters" required minlength="8" />
+        </div>
+        <div class="form-group">
+          <label for="signupConfirm">Confirm Password</label>
+          <input type="password" id="signupConfirm" class="form-input" placeholder="••••••••" required minlength="8" />
+        </div>
+        <p class="form-error hidden" id="signupError"></p>
+        <button type="submit" class="btn btn--primary btn--block">Sign Up</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ ALERT MODAL ============ -->
+  <div class="modal-backdrop hidden" id="alertModal" role="dialog" aria-modal="true" aria-label="Set price alert">
+    <div class="modal" role="document">
+      <button class="modal__close" id="alertModalClose" aria-label="Close">&times;</button>
+      <form class="modal__form" id="alertForm" novalidate>
+        <h2 class="modal__title">🔔 Set Price Alert</h2>
+        <p class="modal__subtitle" id="alertStationName">Station Name</p>
+        <div class="form-group">
+          <label for="alertFuelType">Fuel Type</label>
+          <select id="alertFuelType" class="form-input">
+            <option value="gasoline_95">Gasoline 95</option>
+            <option value="diesel">Diesel</option>
+            <option value="gasoline_98">Gasoline 98</option>
+            <option value="diesel_premium">Diesel Premium</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="alertTargetPrice">Target Price (€/L)</label>
+          <input type="number" id="alertTargetPrice" class="form-input" placeholder="1.45" step="0.01" min="0.50"
+                 max="3.00" required />
+        </div>
+        <div class="form-group">
+          <label for="alertEmail">Notification Email</label>
+          <input type="email" id="alertEmail" class="form-input" placeholder="you@example.com" required />
+        </div>
+        <p class="form-error hidden" id="alertError"></p>
+        <p class="form-success hidden" id="alertSuccess">✅ Alert created! You'll be notified by email.</p>
+        <button type="submit" class="btn btn--primary btn--block">Create Alert</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ TOAST ============ -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="footer" role="contentinfo">
+    <p>
+      Data from
+      <a href="https://datos.gob.es/es/catalogo/e05068001-precio-de-carburantes-en-las-gasolineras-espanolas"
+         target="_blank" rel="noopener noreferrer">
+        Ministerio para la Transición Ecológica
+      </a>
+      &nbsp;·&nbsp; Built by the SmartFuel team &nbsp;·&nbsp; © 2026
+    </p>
+  </footer>
+
+  <!-- ============ JS MODULES ============ -->
+  <script src="js/auth.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

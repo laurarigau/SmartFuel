@@ -1,0 +1,139 @@
+{
+  "Comment": "SmartFuel - Weekly model retraining workflow (Athena query -> Train -> Evaluate -> Promote/Notify)",
+  "StartAt": "BuildTrainingData",
+  "States": {
+    "BuildTrainingData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::athena:startQueryExecution.sync",
+      "Parameters": {
+        "QueryString": "SELECT station_id, station_name, latitude, longitude, gasoline_95_price, diesel_price, snapshot_date FROM smartfuel_lake.clean_prices WHERE snapshot_date >= date_add('day', -30, current_date) ORDER BY station_id, snapshot_date",
+        "WorkGroup": "primary",
+        "ResultConfiguration": {
+          "OutputLocation": "s3://${s3_bucket}/athena-results/"
+        }
+      },
+      "ResultPath": "$.athena_result",
+      "Retry": [
+        {
+          "ErrorEquals": ["Athena.InternalServerException", "Athena.TooManyRequestsException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "NotifyAdminsOfFailure"
+        }
+      ],
+      "Next": "TrainModel"
+    },
+    "TrainModel": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "${retrain_lambda_arn}",
+        "Payload": {
+          "action": "train",
+          "query_execution_id.$": "$.athena_result.QueryExecution.QueryExecutionId"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "NotifyAdminsOfFailure"
+        }
+      ],
+      "Next": "CheckModelQuality"
+    },
+    "CheckModelQuality": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.model_is_better",
+          "BooleanEquals": true,
+          "Next": "PromoteModel"
+        }
+      ],
+      "Default": "KeepCurrentModel"
+    },
+    "PromoteModel": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "${retrain_lambda_arn}",
+        "Payload": {
+          "action": "promote",
+          "candidate_model_s3_key.$": "$.candidate_model_s3_key",
+          "metrics.$": "$.metrics"
+        }
+      },
+      "Next": "NotifyAdminsOfSuccess"
+    },
+    "KeepCurrentModel": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${sns_topic_arn}",
+        "Subject": "SmartFuel: New Model Did Not Beat Baseline",
+        "Message": {
+          "status": "kept_current_model",
+          "reason": "New model accuracy was not better than baseline or current production model",
+          "metrics.$": "$.metrics"
+        }
+      },
+      "Next": "RetrainingComplete"
+    },
+    "NotifyAdminsOfSuccess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${sns_topic_arn}",
+        "Subject": "SmartFuel: New Model Promoted to Production",
+        "Message": {
+          "status": "model_promoted",
+          "metrics.$": "$.metrics"
+        }
+      },
+      "Next": "RetrainingComplete"
+    },
+    "NotifyAdminsOfFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${sns_topic_arn}",
+        "Subject": "SmartFuel: Model Retraining Failed",
+        "Message": {
+          "status": "retraining_failed",
+          "error.$": "$.error"
+        }
+      },
+      "Next": "RetrainingFailed"
+    },
+    "RetrainingFailed": {
+      "Type": "Fail",
+      "Error": "RetrainingError",
+      "Cause": "Model retraining failed."
+    },
+    "RetrainingComplete": {
+      "Type": "Succeed"
+    }
+  }
+}
